@@ -204,11 +204,24 @@ export default function Home() {
         body: formData,
       });
 
-      const data = await apiResponse.json();
+      // Handle non-JSON responses (e.g., Vercel timeout errors)
+      let data;
+      try {
+        data = await apiResponse.json();
+      } catch (e) {
+        if (apiResponse.status === 504) {
+          throw new Error("⏱️ Timeout: Vercel Free hat ein 10-Sekunden-Limit. Bitte lokal testen oder Vercel Pro nutzen.");
+        }
+        throw new Error(`Server-Fehler (${apiResponse.status}): ${apiResponse.statusText}`);
+      }
 
       if (!apiResponse.ok) {
-        let errorMsg = data.error || "Fehler bei der Bildgenerierung";
-        if (errorMsg.includes("safety") || errorMsg.includes("rejected")) {
+        let errorMsg = data?.error || "Fehler bei der Bildgenerierung";
+        
+        // Handle timeout errors
+        if (apiResponse.status === 504 || errorMsg.includes("timeout") || errorMsg.includes("FUNCTION_INVOCATION_TIMEOUT")) {
+          errorMsg = "⏱️ Timeout: Die Generierung dauert zu lange. Vercel Free hat ein 10-Sekunden-Limit. Bitte lokal testen oder Vercel Pro nutzen.";
+        } else if (errorMsg.includes("safety") || errorMsg.includes("rejected")) {
           errorMsg = "Das Bild wurde vom Sicherheitssystem abgelehnt. Bitte versuche es mit einem anderen Foto.";
         } else if (errorMsg.includes("verified") || errorMsg.includes("organization")) {
           errorMsg = "OpenAI-Konto muss verifiziert werden.";

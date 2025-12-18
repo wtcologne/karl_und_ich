@@ -7,8 +7,11 @@ import { buildFinalPrompt } from "@/lib/prompts";
 // Force Node.js runtime for file system access
 export const runtime = "nodejs";
 
-// Increase body size limit for image uploads
+// IMPORTANT: Vercel Hobby plan has 10s limit, Pro plan allows up to 300s
+// Set to 60s - requires Vercel Pro for full functionality
 export const maxDuration = 60;
+
+// For Vercel Pro users, you can increase this to 300 for longer generations
 
 /**
  * Get OpenAI API key from environment or local file
