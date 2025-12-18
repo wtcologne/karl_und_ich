@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import OpenAI, { toFile } from "openai";
 import fs from "fs";
 import path from "path";
-import { getRandomPrompt, getPromptByIndex, buildFinalPrompt } from "@/lib/prompts";
+import { buildFinalPrompt } from "@/lib/prompts";
 
 // Force Node.js runtime for file system access
 export const runtime = "nodejs";
@@ -23,14 +23,11 @@ function getApiKey(): string {
   try {
     const keyPath = path.join(process.cwd(), "key.txt");
     const keyContent = fs.readFileSync(keyPath, "utf8");
-    // Parse the key file - take the second line which contains the actual key
     const lines = keyContent.split("\n").filter((line) => line.trim());
-    // Find a line that looks like an API key (starts with sk-)
     const apiKeyLine = lines.find((line) => line.trim().startsWith("sk-"));
     if (apiKeyLine) {
       return apiKeyLine.trim();
     }
-    // If no sk- line found, try the second line (common format)
     if (lines.length >= 2) {
       return lines[1].trim();
     }
@@ -66,7 +63,6 @@ function getMimeType(filePath: string): string {
 function getKarlImagePath(): string {
   const referenzDir = path.join(process.cwd(), "Referenz");
   
-  // Try different possible filenames
   const possibleNames = ["karl.png", "karl.jpg", "karl1.jpg", "karl1.png", "karl2.jpg", "karl3.jpg"];
   
   for (const name of possibleNames) {
@@ -76,7 +72,6 @@ function getKarlImagePath(): string {
     }
   }
   
-  // List available files and use the first image
   try {
     const files = fs.readdirSync(referenzDir);
     const imageFile = files.find((f) => 
@@ -96,13 +91,12 @@ function getKarlImagePath(): string {
 
 export async function POST(request: NextRequest) {
   try {
-    // Get API key
     const apiKey = getApiKey();
 
     // Parse form data
     const formData = await request.formData();
     const selfieFile = formData.get("selfie") as File | null;
-    const sceneIndexStr = formData.get("sceneIndex") as string | null;
+    const customPrompt = formData.get("customPrompt") as string | null;
 
     if (!selfieFile) {
       return Response.json(
@@ -111,22 +105,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!customPrompt || !customPrompt.trim()) {
+      return Response.json(
+        { error: "No scene description provided" },
+        { status: 400 }
+      );
+    }
+
     console.log("Received selfie:", selfieFile.name, selfieFile.type, selfieFile.size, "bytes");
+    console.log("Scene description:", customPrompt);
 
     // Get selfie as buffer
     const selfieBuffer = Buffer.from(await selfieFile.arrayBuffer());
 
-    // Get scene prompt
-    let sceneDescription: string;
-    if (sceneIndexStr && !isNaN(parseInt(sceneIndexStr))) {
-      sceneDescription = getPromptByIndex(parseInt(sceneIndexStr));
-    } else {
-      sceneDescription = getRandomPrompt();
-    }
-
     // Build final prompt
-    const finalPrompt = buildFinalPrompt(sceneDescription);
-    console.log("Using prompt:", finalPrompt);
+    const finalPrompt = buildFinalPrompt(customPrompt);
+    console.log("Final prompt:", finalPrompt);
 
     // Initialize OpenAI client
     const client = new OpenAI({ apiKey });
@@ -168,7 +162,7 @@ export async function POST(request: NextRequest) {
     // Return the generated image and prompt used
     return Response.json({
       imageBase64: imageData.b64_json,
-      promptUsed: sceneDescription,
+      promptUsed: customPrompt,
       fullPrompt: finalPrompt,
     });
   } catch (error) {
